@@ -1,0 +1,79 @@
+clf;clear;clc; 
+min = 60;               %defines a minute in seconds
+
+% set experimental conditions and rate constants
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+feedback = 0;           %decide whether there is a feedback mechanism or not (1 or 0)
+Sol = 0;                %solubility concentration in mM; for systems without feedback value is set zero
+
+t = 100 * min;          %experiment time in minutes
+Acid = 10;              %applied precursor concentration in mM                     
+Fuel = 100;             %applied fuel concentration in mM
+
+k0 = 0.0000135;         %hydration of EDC
+k1 = 0.11;              %EDC + precursor COOH
+k2 = 0.4*k1;            %anhydride formation
+k3 = 0.2*k1;            %hydrolysis of activated precursor
+k4 = 0.009;             %anhydride hydrolysis
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Sol = Sol/1000;         %convert solubility in M
+
+EDC(1)      = Fuel/1000;         %initial fuel concentration in M
+COOH(1)     = Acid*2/1000;       %initial concentration of COOH groups of precursor
+COOOC(1)    = 0;                 %initial anhydride concentration
+COOEDC(1)   = 0;                 %initial active ester concentration
+EDU(1)      = 0;                 %initial waste concentration
+
+for i=1:t
+       
+    %calculation reaction rates
+    r0(i) = k0*EDC(i);                   %EDC + H20 -> EDU
+    r1(i) = k1*EDC(i)*COOH(i);           %acid precursor + EDC -> O-acylurea
+    r2(i) = k2*COOEDC(i);                %O-acylurea + second carboxylic acid -> anhydride
+    r3(i) = k3*COOEDC(i);                %O-acylurea + H2O -> acid precursor + EDU
+    
+    if feedback == 1 && COOOC(i) > Sol   
+        r4(i) = k4*Sol;                  %zero order anhydride hydrolysis
+    else
+        r4(i) = k4*COOOC(i);             %pseudo first order anhydride hydrolysis
+    end
+  
+    %calculation of concentrations
+    EDC(i+1)        = EDC(i) - r1(i) - r0(i);
+    COOH(i+1)       = COOH(i) - r1(i) - r2(i) + 2*r4(i) + r3(i);
+    COOEDC(i+1)     = COOEDC(i) + r1(i) - r2(i) - r3(i);
+    COOOC(i+1)      = COOOC(i) + r2(i) - r4(i);
+    EDU(i+1)        = EDU(i) + r0(i) + r2(i) + r3(i);
+                                         
+end
+
+    HPLCtime = 0;                               %code that loads the HPLC data
+    HPLCanhydride = 0;
+    HPLCedc =0;
+    HPLCtime = csvread('Data/time.dat');
+    HPLCanhydride = csvread('Data/anhydride.dat');
+    HPLCedc = csvread('Data/edc.dat');
+
+%plotting the modeled data together with the experimental data
+figure(1);
+subplot(2,2,1)
+plot ((1:t)/60,EDC(1:t)*1000, '-k');
+hold on
+plot(HPLCtime, HPLCedc, 'ok')
+xlabel('Time [min]')
+ylabel('c_{EDC} [mM]')
+xlim([0 t/min])
+ylim([0 Fuel])
+set(gca,'FontSize', 8);
+
+subplot(2,2,2)
+plot (HPLCtime,HPLCanhydride, 'or');
+hold on
+plot ((1:t)/60,COOOC(1:t)*1000, '-k');
+hold on
+xlabel('Time [min]')
+ylabel('c_{anhydride} [mM]')
+xlim([0 t/min])
+ylim([0 Acid])
+set(gca,'FontSize', 8);
